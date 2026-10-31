@@ -10,7 +10,7 @@ set(PROJECT_DESCRIPTION "${PROJECT_NAME_UCASE} Studio Gear")
 set(PROJECT_COPYRIGHT   "2007-${PROJECT_YEAR} ${PROJECT_AUTHOR}")
 set(VERSION_MAJOR       "0")
 set(VERSION_MINOR       "90")
-set(VERSION_RELEASE     "4")
+set(VERSION_RELEASE     "9")
 set(VERSION_STAGE       "alpha")
 set(VERSION_BUILD       "")
 set(VERSION             "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_RELEASE}")
@@ -18,47 +18,24 @@ set(VERSION             "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_RELEASE}")
 configure_file("${CMAKE_SOURCE_DIR}/COPYING" "${CMAKE_BINARY_DIR}/COPYING.txt" COPYONLY)
 
 #
-# CPack
-#
-
-SET(CPACK_PACKAGE_DESCRIPTION_SUMMARY           "${PROJECT_DESCRIPTION}")
-SET(CPACK_PACKAGE_VENDOR                        "${PROJECT_AUTHOR}")
-SET(CPACK_PACKAGE_DESCRIPTION_FILE              "${CMAKE_SOURCE_DIR}/README.md")
-SET(CPACK_RESOURCE_FILE_LICENSE                 "${CMAKE_BINARY_DIR}/COPYING.txt")
-SET(CPACK_PACKAGE_VERSION_MAJOR                 "${VERSION_MAJOR}")
-SET(CPACK_PACKAGE_VERSION_MINOR                 "${VERSION_MINOR}")
-SET(CPACK_PACKAGE_VERSION_PATCH                 "${VERSION_RELEASE}")
-IF(VERSION_STAGE)
-        SET(CPACK_PACKAGE_VERSION_PATCH         "${CPACK_PACKAGE_VERSION_PATCH}-${VERSION_STAGE}")
-ENDIF()
-IF(VERSION_BUILD)
-        SET(CPACK_PACKAGE_VERSION_PATCH         "${CPACK_PACKAGE_VERSION_PATCH}-${VERSION_BUILD}")
-ENDIF()
-SET(CPACK_SOURCE_GENERATOR                      "TBZ2")
-SET(CPACK_SOURCE_PACKAGE_FILE_NAME              "${CMAKE_PROJECT_NAME}-${VERSION}")
-set(CPACK_SOURCE_IGNORE_FILES                   "/build;/\.github;/\.git/;/\.gitignore;/\.svnignore;/autogen\.sh;/configure\.ac;/Makefile\.am;${CPACK_SOURCE_IGNORE_FILES}")
-SET(CPACK_PACKAGE_EXECUTABLES           "${CMAKE_PROJECT_NAME}jackhost" "${PROJECT_NAME_UCASE} binary")
-# Disable strip for Debug|RelWithDebInfo
-if(CMAKE_BUILD_TYPE MATCHES "Deb")
-	unset(CPACK_STRIP_FILES)
-else()
-	set(CPACK_STRIP_FILES TRUE)
-endif()
-
-INCLUDE(CPack)
-
-#
 # Options
 #
+
+include(GNUInstallDirs)
 
 option(WANT_GUI         "Include Graphical User Interface" ON)
 option(WANT_JACK        "Include JACK (Jack Audio Connection Kit) support" ON)
 option(WANT_LASH        "Include LASH (LASH Audio Session Handler) support" ON)
 option(WANT_DEBUG       "Create debug build" OFF)
+option(WANT_SSE         "Compile with SSE extensions" OFF)
 option(WANT_LV2         "Build Lv2 wrapper" ON)
 option(WANT_LV2_GUI     "GUI executable will be used for LV2" ON)
 option(WANT_SORDI       "Use the sordi tool to check Lv2 files" ON)
 option(WANT_EXPERIMENTAL "Enable experimental effects" OFF)
+option(BUILD_SHARED_LIBS "Build using shared libraries" ON)
+
+set(LV2DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/lv2"
+    CACHE PATH "Install path (absolute) for the LV2 plugin bundle")
 
 #
 # Configuration
@@ -202,27 +179,74 @@ include_directories(${CMAKE_BINARY_DIR})
 add_subdirectory(src)
 add_subdirectory(gui)
 add_subdirectory(icons)
+add_subdirectory(licenses)
 
 #
 # Install targets (except src)
 #
 
+install(FILES ${CMAKE_SOURCE_DIR}/README.md
+        DESTINATION ${CMAKE_INSTALL_DOCDIR})
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/licenses
+        DESTINATION ${CMAKE_INSTALL_DOCDIR} FILES_MATCHING PATTERN "*.txt")
+install(FILES ${CMAKE_BINARY_DIR}/licenses/ALL_LICENSES.txt
+        DESTINATION ${CMAKE_INSTALL_DOCDIR}/licenses/)
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/doc/manuals/
-        DESTINATION share/doc/${PROJECT_NAME} FILES_MATCHING PATTERN "*.html")
+        DESTINATION ${CMAKE_INSTALL_DOCDIR} FILES_MATCHING PATTERN "*.html")
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/doc/manuals/images/
-        DESTINATION share/doc/${PROJECT_NAME}/images FILES_MATCHING PATTERN "*.png")
+        DESTINATION ${CMAKE_INSTALL_DOCDIR}/images FILES_MATCHING PATTERN "*.png")
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/doc/manuals/images/
-        DESTINATION share/doc/${PROJECT_NAME}/images FILES_MATCHING PATTERN "*.jpg")
+        DESTINATION ${CMAKE_INSTALL_DOCDIR}/images FILES_MATCHING PATTERN "*.jpg")
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/doc/manuals/images/prettyPhoto/dark_rounded/
-        DESTINATION share/doc/${PROJECT_NAME}/images/prettyPhoto/dark_rounded)
+        DESTINATION ${CMAKE_INSTALL_DOCDIR}/images/prettyPhoto/dark_rounded)
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/doc/manuals/images/icons/
-        DESTINATION share/doc/${PROJECT_NAME}/images/icons)
+        DESTINATION ${CMAKE_INSTALL_DOCDIR}/images/icons)
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/doc/manuals/scripts
-        DESTINATION share/doc/${PROJECT_NAME} FILES_MATCHING PATTERN "*.css")
+        DESTINATION ${CMAKE_INSTALL_DOCDIR} FILES_MATCHING PATTERN "*.css")
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/doc/manuals/scripts/
-        DESTINATION share/doc/${PROJECT_NAME}/scripts FILES_MATCHING PATTERN "*.js")
+        DESTINATION ${CMAKE_INSTALL_DOCDIR}/scripts FILES_MATCHING PATTERN "*.js")
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/sf2/
-        DESTINATION share/${PROJECT_NAME}/sf2 FILES_MATCHING PATTERN "*.sf2")
+        DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/sf2 FILES_MATCHING PATTERN "*.sf2")
+if(WANT_GUI)
+    install(FILES ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}.desktop
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+endif()
+install(FILES ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}jackhost.1
+        DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
+install(FILES ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}.7
+        DESTINATION ${CMAKE_INSTALL_MANDIR}/man7)
+install(FILES ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/bash-completion/completions)
+
+#
+# CPack
+#
+
+SET(CPACK_PACKAGE_DESCRIPTION_SUMMARY           "${PROJECT_DESCRIPTION}")
+SET(CPACK_PACKAGE_VENDOR                        "${PROJECT_AUTHOR}")
+SET(CPACK_PACKAGE_DESCRIPTION_FILE              "${CMAKE_SOURCE_DIR}/README.md")
+SET(CPACK_RESOURCE_FILE_LICENSE                 "${CMAKE_BINARY_DIR}/licenses/ALL_LICENSES.txt")
+SET(CPACK_PACKAGE_VERSION_MAJOR                 "${VERSION_MAJOR}")
+SET(CPACK_PACKAGE_VERSION_MINOR                 "${VERSION_MINOR}")
+SET(CPACK_PACKAGE_VERSION_PATCH                 "${VERSION_RELEASE}")
+IF(VERSION_STAGE)
+        SET(CPACK_PACKAGE_VERSION_PATCH         "${CPACK_PACKAGE_VERSION_PATCH}-${VERSION_STAGE}")
+ENDIF()
+IF(VERSION_BUILD)
+        SET(CPACK_PACKAGE_VERSION_PATCH         "${CPACK_PACKAGE_VERSION_PATCH}-${VERSION_BUILD}")
+ENDIF()
+SET(CPACK_SOURCE_GENERATOR                      "TBZ2")
+SET(CPACK_SOURCE_PACKAGE_FILE_NAME              "${CMAKE_PROJECT_NAME}-${VERSION}")
+set(CPACK_SOURCE_IGNORE_FILES                   "/build;/\.github;/\.git/;/\.gitignore;/\.svnignore;/autogen\.sh;/configure\.ac;/Makefile\.am;${CPACK_SOURCE_IGNORE_FILES}")
+SET(CPACK_PACKAGE_EXECUTABLES           "${CMAKE_PROJECT_NAME}jackhost" "${PROJECT_NAME_UCASE} binary")
+# Disable strip for Debug|RelWithDebInfo
+if(CMAKE_BUILD_TYPE MATCHES "Deb")
+	unset(CPACK_STRIP_FILES)
+else()
+	set(CPACK_STRIP_FILES TRUE)
+endif()
+
+INCLUDE(CPack)
 
 #
 # Status
